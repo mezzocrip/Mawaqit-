@@ -20,7 +20,7 @@ def fetch_mawaqit_data():
     if match:
         return json.loads(match.group(1))
         
-    match_alt = re.search(r'window\.frontApp\s*=\s*(\{.*?\});', res.text, res.DOTALL)
+    match_alt = re.search(r'window\.frontApp\s*=\s*(\{.*?\});', res.text, re.DOTALL)
     if match_alt:
         return json.loads(match_alt.group(1))
         
@@ -51,19 +51,16 @@ def generate_ics(data):
         "X-WR-TIMEZONE:Europe/Paris"
     ]
 
-    # Génération sur les 30 prochains jours
     for i in range(30):
         current_date = now + timedelta(days=i)
         date_str = current_date.strftime("%Y%m%d")
         
-        # Index du jour dans l'année (0-365) pour récupérer les lignes du calendrier Mawaqit
         day_of_year = current_date.timetuple().tm_yday - 1
         
         if day_of_year < len(calendar_days):
             day_data = calendar_days[day_of_year]
             times = day_data if isinstance(day_data, list) else day_data.get("times", [])
             
-            # 5 Prières quotidiennes
             if len(times) >= 5:
                 for name, idx in prayers:
                     time_str = times[idx]
@@ -72,7 +69,7 @@ def generate_ics(data):
                     
                     ics_lines.extend([
                         "BEGIN:VEVENT",
-                        f"SUMMARY:Adhan {name}",
+                        f"SUMMARY:{name}",
                         f"DTSTART;TZID=Europe/Paris:{dt_start}",
                         f"DTEND;TZID=Europe/Paris:{dt_start}",
                         f"DESCRIPTION:Prière de {name} - Mosquée de Frais Vallon",
@@ -80,43 +77,13 @@ def generate_ics(data):
                         "END:VEVENT"
                     ])
 
-            # Midnight et Last Third (souvent stockés aux index spécifiques ou dans les métadonnées journalières)
-            # Si présents dans le tableau ou l'objet du jour :
-            if isinstance(day_data, dict):
-                midnight = day_data.get("midnight")
-                last_third = day_data.get("lastThird")
-                
-                if midnight:
-                    m_time = midnight.replace(":", "")
-                    ics_lines.extend([
-                        "BEGIN:VEVENT",
-                        "SUMMARY:Midnight",
-                        f"DTSTART;TZID=Europe/Paris:{date_str}T{m_time}00",
-                        f"DTEND;TZID=Europe/Paris:{date_str}T{m_time}00",
-                        "DESCRIPTION:Milieu de la nuit",
-                        "LOCATION:Mosquée de Frais Vallon, 13013 Marseille",
-                        "END:VEVENT"
-                    ])
-                    
-                if last_third:
-                    lt_time = last_third.replace(":", "")
-                    ics_lines.extend([
-                        "BEGIN:VEVENT",
-                        "SUMMARY:Last Third",
-                        f"DTSTART;TZID=Europe/Paris:{date_str}T{lt_time}00",
-                        f"DTEND;TZID=Europe/Paris:{date_str}T{lt_time}00",
-                        "DESCRIPTION:Dernier tiers de la nuit",
-                        "LOCATION:Mosquée de Frais Vallon, 13013 Marseille",
-                        "END:VEVENT"
-                    ])
-
         # Prière du Vendredi (Jumu'ah)
-        if current_date.weekday() == 4: # 4 = Vendredi
+        if current_date.weekday() == 4:
             clean_jumuah = jumuah_time.replace(":", "")
             jumuah_dt = f"{date_str}T{clean_jumuah}00"
             ics_lines.extend([
                 "BEGIN:VEVENT",
-                "SUMMARY:Jumu'ah (Prière du Vendredi)",
+                "SUMMARY:Jumu'ah",
                 f"DTSTART;TZID=Europe/Paris:{jumuah_dt}",
                 f"DTEND;TZID=Europe/Paris:{jumuah_dt}",
                 "DESCRIPTION:Grande prière du vendredi à la mosquée",
@@ -133,7 +100,7 @@ if __name__ == "__main__":
         ics_content = generate_ics(conf_data)
         with open("calendar.ics", "w", encoding="utf-8") as f:
             f.write(ics_content)
-        print("Fichier calendar.ics généré avec succès pour 30 jours !")
+        print("Fichier calendar.ics généré avec succès !")
     except Exception as e:
         print(f"Erreur lors de la génération : {e}")
         exit(1)
