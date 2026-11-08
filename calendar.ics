@@ -1,0 +1,43 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Mawaqit Frais Vallon Generator//FR
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Mosquée Frais Vallon - Prières
+X-WR-TIMEZONE:Europe/Paris
+BEGIN:VEVENT
+SUMMARY:Adhan Fajr
+DTSTART;TZID=Europe/Paris:20261108T061200
+DTEND;TZID=Europe/Paris:20261108T061200
+DESCRIPTION:Prière de Fajr - Mosquée de Frais Vallon
+LOCATION:Mosquée de Frais Vallon, 13013 Marseille
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Adhan Dhuhr
+DTSTART;TZID=Europe/Paris:20261108T122800
+DTEND;TZID=Europe/Paris:20261108T122800
+DESCRIPTION:Prière de Dhuhr - Mosquée de Frais Vallon
+LOCATION:Mosquée de Frais Vallon, 13013 Marseille
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Adhan Asr
+DTSTART;TZID=Europe/Paris:20261108T145900
+DTEND;TZID=Europe/Paris:20261108T145900
+DESCRIPTION:Prière de Asr - Mosquée de Frais Vallon
+LOCATION:Mosquée de Frais Vallon, 13013 Marseille
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Adhan Maghrib
+DTSTART;TZID=Europe/Paris:20261108T172500
+DTEND;TZID=Europe/Paris:20261108T172500
+DESCRIPTION:Prière de Maghrib - Mosquée de Frais Vallon
+LOCATION:Mosquée de Frais Vallon, 13013 Marseille
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Adhan Isha
+DTSTART;TZID=Europe/Paris:20261108T183200
+DTEND;TZID=Europe/Paris:20261108T183200
+DESCRIPTION:Prière de Isha - Mosquée de Frais Vallon
+LOCATION:Mosquée de Frais Vallon, 13013 Marseille
+END:VEVENT
+END:VCALENDAR
