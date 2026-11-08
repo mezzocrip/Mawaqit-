@@ -1,0 +1,164 @@
+
+use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Weekday};
+use chrono_tz::Europe::Paris;
+use mawaqit_api::{times_for_date, MawaqitClient};
+use std::{error::Error, fs};
+
+const MOSQUE: &str = "mosquee-de-frais-vallon-marseille-13013-france-1";
+
+fn to_utc(dt: NaiveDateTime) -> String {
+    Paris
+        .from_local_datetime(&dt)
+        .single()
+        .expect("Invalid local time")
+        .with_timezone(&chrono::Utc)
+        .format("%Y%m%dT%H%M%SZ")
+        .to_string()
+}
+
+fn add_event(
+    calendar: &mut String,
+    date_time: NaiveDateTime,
+    title: &str,
+    id: &str,
+) {
+    let start = to_utc(date_time);
+    let end = to_utc(date_time + Duration::minutes(10));
+
+    calendar.push_str("BEGIN:VEVENT\r\n");
+    calendar.push_str(&format!("UID:{}-{}@frais-vallon\r\n", id, start));
+    calendar.push_str(&format!(
+        "DTSTAMP:{}\r\n",
+        chrono::Utc::now().format("%Y%m%dT%H%M%SZ")
+    ));
+    calendar.push_str(&format!("DTSTART:{}\r\n", start));
+    calendar.push_str(&format!("DTEND:{}\r\n", end));
+    calendar.push_str(&format!("SUMMARY:{}\r\n", title));
+    calendar.push_str("END:VEVENT\r\n");
+}
+
+fn add_hhmm(
+    calendar: &mut String,
+    date: NaiveDate,
+    value: &str,
+    title: &str,
+    id: &str,
+) {
+    if let Ok(time) = NaiveTime::parse_from_str(value.trim(), "%H:%M") {
+        add_event(calendar, date.and_time(time), title, id);
+    }
+}
+
+fn add_friday_time(
+    calendar: &mut String,
+    date: NaiveDate,
+    value: Option<&str>,
+    title: &str,
+    id: &str,
+) {
+    if let Some(value) = value {
+        for part in value.split(|c: char| {
+            !(c.is_ascii_digit() || c == ':')
+        }) {
+            add_hhmm(calendar, date, part, title, id);
+        }
+    }
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let runtime = tokio::runtime::Runtime::new()?;
+    let client = MawaqitClient::new();
+
+    let conf = runtime.block_on(client.conf_data(MOSQUE))?;
+    let mosque_name = conf
+        .name
+        .as_deref()
+        .unwrap_or("Mosquée de Frais Vallon");
+
+    let today = chrono::Utc::now()
+        .with_timezone(&Paris)
+        .date_naive();
+
+    let end = NaiveDate::from_ymd_opt(today.year() + 1, 1, 1)
+        .expect("Invalid end date");
+
+    let mut calendar = String::from(
+        "BEGIN:VCALENDAR\r\n\
+VERSION:2.0\r\n\
+PRODID:-//Mawaqit//Frais Vallon//FR\r\n\
+CALSCALE:GREGORIAN\r\n\
+METHOD:PUBLISH\r\n\
+X-WR-CALNAME:Prières - Mosquée de Frais Vallon\r\n"
+    );
+
+    let mut date = today;
+
+    while date < end {
+        if let Ok(day) = times_for_date(&conf, date) {
+            let prayers = [
+                (&day.adhan.fajr, "Fajr", "fajr"),
+                (&day.adhan.dhuhr, "Dhuhr", "dhuhr"),
+                (&day.adhan.asr, "Asr", "asr"),
+                (&day.adhan.maghrib, "Maghrib", "maghrib"),
+                (&day.adhan.isha, "Isha", "isha"),
+            ];
+
+            for (time, prayer, id) in prayers {
+                add_hhmm(
+                    &mut calendar,
+                    date,
+                    time,
+                    &format!("{} - {} - Adhan", mosque_name, prayer),
+                    &format!("{}-adhan", id),
+                );
+            }
+
+            if let Some(iqama) = day.iqama_at {
+                let prayers = [
+                    (iqama.fajr, "Fajr", "fajr"),
+                    (iqama.dhuhr, "Dhuhr", "dhuhr"),
+                    (iqama.asr, "Asr", "asr"),
+                    (iqama.maghrib, "Maghrib", "maghrib"),
+                    (iqama.isha, "Isha", "isha"),
+                ];
+
+                for (time, prayer, id) in prayers {
+                    add_event(
+                        &mut calendar,
+                        time,
+                        &format!("{} - {} - Iqama", mosque_name, prayer),
+                        &format!("{}-iqama", id),
+                    );
+                }
+            }
+        }
+
+        if date.weekday() == Weekday::Fri {
+            add_friday_time(
+                &mut calendar,
+                date,
+                conf.jumua.as_deref(),
+                &format!("{} - Jumu'ah", mosque_name),
+                "jumua-1",
+            );
+
+            add_friday_time(
+                &mut calendar,
+                date,
+                conf.jumua2.as_deref(),
+                &format!("{} - Jumu'ah - deuxième séance", mosque_name),
+                "jumua-2",
+            );
+        }
+
+        date += Duration::days(1);
+    }
+
+    calendar.push_str("END:VCALENDAR\r\n");
+
+    fs::write("calendar.ics", calendar)?;
+
+    println!("Calendar generated successfully.");
+
+    Ok(())
+}
