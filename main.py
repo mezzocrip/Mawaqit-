@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import re
 import zoneinfo
@@ -16,13 +16,11 @@ def fetch_mawaqit_data():
     res = requests.get(URL, headers=headers, timeout=15)
     res.raise_for_status()
     
-    # Recherche de la configuration embarquée dans le code HTML de la page
     match = re.search(r'var\s+confData\s*=\s*(\{.*?\});', res.text, re.DOTALL)
     if match:
         return json.loads(match.group(1))
-    
-    # Second pattern de secours si le nom de variable change
-    match_alt = re.search(r'window\.frontApp\s*=\s*(\{.*?\});', res.text, re.DOTALL)
+        
+    match_alt = re.search(r'window\.frontApp\s*=\s*(\{.*?\});', res.text, res.DOTALL)
     if match_alt:
         return json.loads(match_alt.group(1))
         
@@ -30,7 +28,7 @@ def fetch_mawaqit_data():
 
 def generate_ics(data):
     tz = zoneinfo.ZoneInfo("Europe/Paris")
-    today = datetime.now(tz).strftime("%Y%m%d")
+    now = datetime.now(tz)
     
     prayers = [
         ("Fajr", 0),
@@ -40,10 +38,8 @@ def generate_ics(data):
         ("Isha", 4)
     ]
     
-    # Extraction des horaires du jour
-    times = data.get("times", [])
-    if not times and "mosque" in data:
-        times = data["mosque"].get("times", [])
+    calendar_days = data.get("calendar", [])
+    jumuah_time = data.get("jumuah", "12:30")
 
     ics_lines = [
         "BEGIN:VCALENDAR",
@@ -55,18 +51,75 @@ def generate_ics(data):
         "X-WR-TIMEZONE:Europe/Paris"
     ]
 
-    if len(times) >= 5:
-        for name, idx in prayers:
-            time_str = times[idx]
-            clean_time = time_str.replace(":", "")
-            dt_start = f"{today}T{clean_time}00"
+    # Génération sur les 30 prochains jours
+    for i in range(30):
+        current_date = now + timedelta(days=i)
+        date_str = current_date.strftime("%Y%m%d")
+        
+        # Index du jour dans l'année (0-365) pour récupérer les lignes du calendrier Mawaqit
+        day_of_year = current_date.timetuple().tm_yday - 1
+        
+        if day_of_year < len(calendar_days):
+            day_data = calendar_days[day_of_year]
+            times = day_data if isinstance(day_data, list) else day_data.get("times", [])
             
+            # 5 Prières quotidiennes
+            if len(times) >= 5:
+                for name, idx in prayers:
+                    time_str = times[idx]
+                    clean_time = time_str.replace(":", "")
+                    dt_start = f"{date_str}T{clean_time}00"
+                    
+                    ics_lines.extend([
+                        "BEGIN:VEVENT",
+                        f"SUMMARY:Adhan {name}",
+                        f"DTSTART;TZID=Europe/Paris:{dt_start}",
+                        f"DTEND;TZID=Europe/Paris:{dt_start}",
+                        f"DESCRIPTION:Prière de {name} - Mosquée de Frais Vallon",
+                        "LOCATION:Mosquée de Frais Vallon, 13013 Marseille",
+                        "END:VEVENT"
+                    ])
+
+            # Midnight et Last Third (souvent stockés aux index spécifiques ou dans les métadonnées journalières)
+            # Si présents dans le tableau ou l'objet du jour :
+            if isinstance(day_data, dict):
+                midnight = day_data.get("midnight")
+                last_third = day_data.get("lastThird")
+                
+                if midnight:
+                    m_time = midnight.replace(":", "")
+                    ics_lines.extend([
+                        "BEGIN:VEVENT",
+                        "SUMMARY:Midnight",
+                        f"DTSTART;TZID=Europe/Paris:{date_str}T{m_time}00",
+                        f"DTEND;TZID=Europe/Paris:{date_str}T{m_time}00",
+                        "DESCRIPTION:Milieu de la nuit",
+                        "LOCATION:Mosquée de Frais Vallon, 13013 Marseille",
+                        "END:VEVENT"
+                    ])
+                    
+                if last_third:
+                    lt_time = last_third.replace(":", "")
+                    ics_lines.extend([
+                        "BEGIN:VEVENT",
+                        "SUMMARY:Last Third",
+                        f"DTSTART;TZID=Europe/Paris:{date_str}T{lt_time}00",
+                        f"DTEND;TZID=Europe/Paris:{date_str}T{lt_time}00",
+                        "DESCRIPTION:Dernier tiers de la nuit",
+                        "LOCATION:Mosquée de Frais Vallon, 13013 Marseille",
+                        "END:VEVENT"
+                    ])
+
+        # Prière du Vendredi (Jumu'ah)
+        if current_date.weekday() == 4: # 4 = Vendredi
+            clean_jumuah = jumuah_time.replace(":", "")
+            jumuah_dt = f"{date_str}T{clean_jumuah}00"
             ics_lines.extend([
                 "BEGIN:VEVENT",
-                f"SUMMARY:Adhan {name}",
-                f"DTSTART;TZID=Europe/Paris:{dt_start}",
-                f"DTEND;TZID=Europe/Paris:{dt_start}",
-                f"DESCRIPTION:Prière de {name} - Mosquée de Frais Vallon",
+                "SUMMARY:Jumu'ah (Prière du Vendredi)",
+                f"DTSTART;TZID=Europe/Paris:{jumuah_dt}",
+                f"DTEND;TZID=Europe/Paris:{jumuah_dt}",
+                "DESCRIPTION:Grande prière du vendredi à la mosquée",
                 "LOCATION:Mosquée de Frais Vallon, 13013 Marseille",
                 "END:VEVENT"
             ])
@@ -80,7 +133,7 @@ if __name__ == "__main__":
         ics_content = generate_ics(conf_data)
         with open("calendar.ics", "w", encoding="utf-8") as f:
             f.write(ics_content)
-        print("Fichier calendar.ics généré avec succès !")
+        print("Fichier calendar.ics généré avec succès pour 30 jours !")
     except Exception as e:
         print(f"Erreur lors de la génération : {e}")
         exit(1)
