@@ -3,13 +3,13 @@ import json
 import zoneinfo
 import requests
 
-# Utilisation de l'API Mawaqit officielle pour la mosquée de Frais Vallon (ID: 10255)
-MOSQUE_ID = "10255"
-API_URL = f"https://mawaqit.net/api/minifiedPrayerTimes/{MOSQUE_ID}"
+# Utilisation directe de l'API JSON publique de Mawaqit avec le slug
+SLUG = "mosquee-de-frais-vallon-marseille-13013-france-1"
+API_URL = f"https://mawaqit.net/fr/{SLUG}.json"
 
 headers = {
     "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-    "Referer": "https://mawaqit.net/"
+    "Accept": "application/json"
 }
 
 def fetch_mawaqit_data():
@@ -29,7 +29,6 @@ def generate_ics(data):
         ("Isha", 4)
     ]
     
-    # L'API minified renvoie directement un tableau des horaires du jour dans 'times'
     times = data.get("times", [])
     jumuah = data.get("jumuah", "12:30")
 
@@ -59,7 +58,6 @@ def generate_ics(data):
                 "END:VEVENT"
             ])
 
-    # Événement Jumu'ah le vendredi
     if datetime.now(tz).weekday() == 4:
         clean_jumuah = jumuah.replace(":", "")
         jumuah_dt = f"{today}T{clean_jumuah}00"
