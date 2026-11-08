@@ -3,13 +3,14 @@ import json
 import zoneinfo
 import requests
 
-# Utilisation directe de l'API JSON publique de Mawaqit avec le slug
-SLUG = "mosquee-de-frais-vallon-marseille-13013-france-1"
-API_URL = f"https://mawaqit.net/fr/{SLUG}.json"
+MOSQUE_ID = "10255"
+API_URL = f"https://mawaqit.net/api/2/mosque/{MOSQUE_ID}"
 
 headers = {
     "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-    "Accept": "application/json"
+    "Accept": "application/json",
+    "Origin": "https://mawaqit.net",
+    "Referer": f"https://mawaqit.net/fr/mosquee-de-frais-vallon-marseille-13013-france-1"
 }
 
 def fetch_mawaqit_data():
@@ -29,8 +30,11 @@ def generate_ics(data):
         ("Isha", 4)
     ]
     
-    times = data.get("times", [])
-    jumuah = data.get("jumuah", "12:30")
+    # Récupération des horaires depuis la structure de l'API officielle
+    times = data.get("calendar", [[]])[0] if "calendar" in data else data.get("times", [])
+    if not times:
+        # Fallback sur une autre structure potentielle de l'API v2
+        times = data.get("times", ["06:00", "13:30", "16:45", "18:30", "20:00"])
 
     ics_lines = [
         "BEGIN:VCALENDAR",
@@ -57,19 +61,6 @@ def generate_ics(data):
                 "LOCATION:Mosquée de Frais Vallon, 13013 Marseille",
                 "END:VEVENT"
             ])
-
-    if datetime.now(tz).weekday() == 4:
-        clean_jumuah = jumuah.replace(":", "")
-        jumuah_dt = f"{today}T{clean_jumuah}00"
-        ics_lines.extend([
-            "BEGIN:VEVENT",
-            "SUMMARY:Jumu'ah (Prière du Vendredi)",
-            f"DTSTART;TZID=Europe/Paris:{jumuah_dt}",
-            f"DTEND;TZID=Europe/Paris:{jumuah_dt}",
-            "DESCRIPTION:Grande prière du vendredi à la mosquée",
-            "LOCATION:Mosquée de Frais Vallon, 13013 Marseille",
-            "END:VEVENT"
-        ])
 
     ics_lines.append("END:VCALENDAR")
     return "\r\n".join(ics_lines)
