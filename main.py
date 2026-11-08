@@ -1,22 +1,32 @@
 from datetime import datetime
 import json
+import re
 import zoneinfo
 import requests
 
-MOSQUE_ID = "10255"
-API_URL = f"https://mawaqit.net/api/2/mosque/{MOSQUE_ID}"
+SLUG = "mosquee-de-frais-vallon-marseille-13013-france-1"
+URL = f"https://mawaqit.net/fr/{SLUG}"
 
 headers = {
     "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-    "Accept": "application/json",
-    "Origin": "https://mawaqit.net",
-    "Referer": f"https://mawaqit.net/fr/mosquee-de-frais-vallon-marseille-13013-france-1"
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
 }
 
 def fetch_mawaqit_data():
-    res = requests.get(API_URL, headers=headers, timeout=15)
+    res = requests.get(URL, headers=headers, timeout=15)
     res.raise_for_status()
-    return res.json()
+    
+    # Recherche de la configuration embarquée dans le code HTML de la page
+    match = re.search(r'var\s+confData\s*=\s*(\{.*?\});', res.text, re.DOTALL)
+    if match:
+        return json.loads(match.group(1))
+    
+    # Second pattern de secours si le nom de variable change
+    match_alt = re.search(r'window\.frontApp\s*=\s*(\{.*?\});', res.text, re.DOTALL)
+    if match_alt:
+        return json.loads(match_alt.group(1))
+        
+    raise ValueError("Impossible de trouver les données de la mosquée dans la page.")
 
 def generate_ics(data):
     tz = zoneinfo.ZoneInfo("Europe/Paris")
@@ -30,11 +40,10 @@ def generate_ics(data):
         ("Isha", 4)
     ]
     
-    # Récupération des horaires depuis la structure de l'API officielle
-    times = data.get("calendar", [[]])[0] if "calendar" in data else data.get("times", [])
-    if not times:
-        # Fallback sur une autre structure potentielle de l'API v2
-        times = data.get("times", ["06:00", "13:30", "16:45", "18:30", "20:00"])
+    # Extraction des horaires du jour
+    times = data.get("times", [])
+    if not times and "mosque" in data:
+        times = data["mosque"].get("times", [])
 
     ics_lines = [
         "BEGIN:VCALENDAR",
