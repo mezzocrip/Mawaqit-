@@ -1,0 +1,34 @@
+name: Update Mawaqit ICS Calendar
+
+on:
+  schedule:
+    # Exécution 2 fois par jour (à 00h17 et 12h17 UTC)
+    - cron: '17 0,12 * * *'
+  workflow_dispatch: # Permet de lancer le script manuellement depuis GitHub
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥️ Recupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: 🐍 Configurer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Installer les bibliothèques
+        run: pip install requests
+
+      - name: ⚙️ Générer le fichier calendar.ics
+        run: python main.py
+
+      - name: 🚀 Mettre à jour et publier calendar.ics
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add calendar.ics
+          git commit -m "Mise à jour automatique du calendrier Mawaqit" || exit 0
+          git push
