@@ -1,33 +1,26 @@
-import json
-import re
 from datetime import datetime
+import json
 import zoneinfo
 import requests
 
-# Information mosquée Frais Vallon (Marseille 13013)
-SLUG = "mosquee-de-frais-vallon-marseille-13013-france-1"
-URL = f"https://mawaqit.net/fr/{SLUG}"
+# Utilisation de l'API Mawaqit officielle pour la mosquée de Frais Vallon (ID: 10255)
+MOSQUE_ID = "10255"
+API_URL = f"https://mawaqit.net/api/minifiedPrayerTimes/{MOSQUE_ID}"
 
 headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+    "Referer": "https://mawaqit.net/"
 }
 
 def fetch_mawaqit_data():
-    res = requests.get(URL, headers=headers, timeout=15)
+    res = requests.get(API_URL, headers=headers, timeout=15)
     res.raise_for_status()
-    
-    # Extraction de la variable Javascript confData présente sur la page
-    match = re.search(r'var\s+confData\s*=\s*(\{.*?\});', res.text, re.DOTALL)
-    if not match:
-        raise ValueError("Impossible de trouver confData sur la page Mawaqit.")
-    
-    return json.loads(match.group(1))
+    return res.json()
 
 def generate_ics(data):
     tz = zoneinfo.ZoneInfo("Europe/Paris")
     today = datetime.now(tz).strftime("%Y%m%d")
     
-    # Mapping des noms de prières
     prayers = [
         ("Fajr", 0),
         ("Dhuhr", 1),
@@ -36,8 +29,8 @@ def generate_ics(data):
         ("Isha", 4)
     ]
     
+    # L'API minified renvoie directement un tableau des horaires du jour dans 'times'
     times = data.get("times", [])
-    iqama_times = data.get("iqamaCalendar", {})
     jumuah = data.get("jumuah", "12:30")
 
     ics_lines = [
@@ -50,7 +43,6 @@ def generate_ics(data):
         "X-WR-TIMEZONE:Europe/Paris"
     ]
 
-    # Génération des 5 prières du jour
     if len(times) >= 5:
         for name, idx in prayers:
             time_str = times[idx]
@@ -67,8 +59,8 @@ def generate_ics(data):
                 "END:VEVENT"
             ])
 
-    # Événement Jumu'ah (Vendredi)
-    if datetime.now(tz).weekday() == 4: # 4 = Vendredi
+    # Événement Jumu'ah le vendredi
+    if datetime.now(tz).weekday() == 4:
         clean_jumuah = jumuah.replace(":", "")
         jumuah_dt = f"{today}T{clean_jumuah}00"
         ics_lines.extend([
