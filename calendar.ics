@@ -5,32 +5,4 @@ CALSCALE:GREGORIAN
 METHOD:PUBLISH
 X-WR-CALNAME:Mosquée Frais Vallon - Prières
 X-WR-TIMEZONE:Europe/Paris
-BEGIN:VEVENT
-SUMMARY:Jumu'ah
-DTSTART;TZID=Europe/Paris:20261113T123000
-DTEND;TZID=Europe/Paris:20261113T123000
-DESCRIPTION:Grande prière du vendredi à la mosquée
-LOCATION:Mosquée de Frais Vallon, 13013 Marseille
-END:VEVENT
-BEGIN:VEVENT
-SUMMARY:Jumu'ah
-DTSTART;TZID=Europe/Paris:20261120T123000
-DTEND;TZID=Europe/Paris:20261120T123000
-DESCRIPTION:Grande prière du vendredi à la mosquée
-LOCATION:Mosquée de Frais Vallon, 13013 Marseille
-END:VEVENT
-BEGIN:VEVENT
-SUMMARY:Jumu'ah
-DTSTART;TZID=Europe/Paris:20261127T123000
-DTEND;TZID=Europe/Paris:20261127T123000
-DESCRIPTION:Grande prière du vendredi à la mosquée
-LOCATION:Mosquée de Frais Vallon, 13013 Marseille
-END:VEVENT
-BEGIN:VEVENT
-SUMMARY:Jumu'ah
-DTSTART;TZID=Europe/Paris:20261204T123000
-DTEND;TZID=Europe/Paris:20261204T123000
-DESCRIPTION:Grande prière du vendredi à la mosquée
-LOCATION:Mosquée de Frais Vallon, 13013 Marseille
-END:VEVENT
 END:VCALENDAR
