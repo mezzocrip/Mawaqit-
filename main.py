@@ -39,7 +39,13 @@ def generate_ics(data):
     ]
     
     calendar_days = data.get("calendar", [])
-    jumuah_time = data.get("jumuah", "12:30")
+    
+    # Récupération sécurisée de l'heure du Jumu'ah directement depuis les données de la mosquée
+    jumuah_time = data.get("jumuah")
+    if not jumuah_time and "mosque" in data:
+        jumuah_time = data["mosque"].get("jumuah")
+    if not jumuah_time:
+        jumuah_time = "13:00" # Valeur de secours si l'API ne l'expose pas directement sous cette clé
 
     ics_lines = [
         "BEGIN:VCALENDAR",
@@ -77,19 +83,21 @@ def generate_ics(data):
                         "END:VEVENT"
                     ])
 
-        # Prière du Vendredi (Jumu'ah)
-        if current_date.weekday() == 4:
-            clean_jumuah = jumuah_time.replace(":", "")
-            jumuah_dt = f"{date_str}T{clean_jumuah}00"
-            ics_lines.extend([
-                "BEGIN:VEVENT",
-                "SUMMARY:Jumu'ah",
-                f"DTSTART;TZID=Europe/Paris:{jumuah_dt}",
-                f"DTEND;TZID=Europe/Paris:{jumuah_dt}",
-                "DESCRIPTION:Grande prière du vendredi à la mosquée",
-                "LOCATION:Mosquée de Frais Vallon, 13013 Marseille",
-                "END:VEVENT"
-            ])
+                # Prière du Vendredi (Jumu'ah) basée sur le jour effectif et l'horaire officiel
+                if current_date.weekday() == 4:
+                    # Si une heure spécifique de Jumu'ah est dans les données de la mosquée, on l'utilise, sinon on prend le Dhuhr du jour
+                    j_time = jumuah_time if jumuah_time else times[1]
+                    clean_jumuah = j_time.replace(":", "")
+                    jumuah_dt = f"{date_str}T{clean_jumuah}00"
+                    ics_lines.extend([
+                        "BEGIN:VEVENT",
+                        "SUMMARY:Jumu'ah",
+                        f"DTSTART;TZID=Europe/Paris:{jumuah_dt}",
+                        f"DTEND;TZID=Europe/Paris:{jumuah_dt}",
+                        "DESCRIPTION:Grande prière du vendredi à la mosquée",
+                        "LOCATION:Mosquée de Frais Vallon, 13013 Marseille",
+                        "END:VEVENT"
+                    ])
 
     ics_lines.append("END:VCALENDAR")
     return "\r\n".join(ics_lines)
