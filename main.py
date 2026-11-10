@@ -1,114 +1,39 @@
-from datetime import datetime, timedelta
-import json
-import re
-import zoneinfo
-import requests
+from datetime import datetime
+import os
 
-SLUG = "mosquee-de-frais-vallon-marseille-13013-france-1"
-URL = f"https://mawaqit.net/fr/{SLUG}"
+def process_ics_subscription(input_path, output_path):
+    if not os.path.exists(input_path):
+        raise FileNotFoundError(f"Le fichier source '{input_path}' est introuvable. Veuillez le placer dans le même dossier.")
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-}
+    with open(input_path, 'r', encoding='utf-8', errors='ignore') as f:
+        content = f.read()
 
-def fetch_mawaqit_data():
-    res = requests.get(URL, headers=headers, timeout=15)
-    res.raise_for_status()
+    lines = content.splitlines()
+    new_lines = []
     
-    match = re.search(r'var\s+confData\s*=\s*(\{.*?\});', res.text, re.DOTALL)
-    if match:
-        return json.loads(match.group(1))
+    # Personnalisation des métadonnées pour l'abonnement
+    for line in lines:
+        if line.startswith("X-WR-CALNAME:"):
+            line = "X-WR-CALNAME:Mon Abonnement Calendrier Personnalisé"
+        elif line.startswith("PRODID:"):
+            line = "PRODID:-//Mon Convertisseur ICS Personnel//FR"
         
-    match_alt = re.search(r'window\.frontApp\s*=\s*(\{.*?\});', res.text, re.DOTALL)
-    if match_alt:
-        return json.loads(match_alt.group(1))
-        
-    raise ValueError("Impossible de trouver les données de la mosquée dans la page.")
+        new_lines.append(line)
 
-def generate_ics(data):
-    tz = zoneinfo.ZoneInfo("Europe/Paris")
-    now = datetime.now(tz)
-    
-    prayers = [
-        ("Fajr", 0),
-        ("Dhuhr", 1),
-        ("Asr", 2),
-        ("Maghrib", 3),
-        ("Isha", 4)
-    ]
-    
-    calendar_days = data.get("calendar", [])
-    
-    # Récupération sécurisée de l'heure du Jumu'ah directement depuis les données de la mosquée
-    jumuah_time = data.get("jumuah")
-    if not jumuah_time and "mosque" in data:
-        jumuah_time = data["mosque"].get("jumuah")
-    if not jumuah_time:
-        jumuah_time = "13:00" # Valeur de secours si l'API ne l'expose pas directement sous cette clé
+    # Écriture du fichier final de sortie pour l'abonnement
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write("\r\n".join(new_lines))
 
-    ics_lines = [
-        "BEGIN:VCALENDAR",
-        "VERSION:2.0",
-        "PRODID:-//Mawaqit Frais Vallon Generator//FR",
-        "CALSCALE:GREGORIAN",
-        "METHOD:PUBLISH",
-        "X-WR-CALNAME:Mosquée Frais Vallon - Prières",
-        "X-WR-TIMEZONE:Europe/Paris"
-    ]
-
-    for i in range(30):
-        current_date = now + timedelta(days=i)
-        date_str = current_date.strftime("%Y%m%d")
-        
-        day_of_year = current_date.timetuple().tm_yday - 1
-        
-        if day_of_year < len(calendar_days):
-            day_data = calendar_days[day_of_year]
-            times = day_data if isinstance(day_data, list) else day_data.get("times", [])
-            
-            if len(times) >= 5:
-                for name, idx in prayers:
-                    time_str = times[idx]
-                    clean_time = time_str.replace(":", "")
-                    dt_start = f"{date_str}T{clean_time}00"
-                    
-                    ics_lines.extend([
-                        "BEGIN:VEVENT",
-                        f"SUMMARY:{name}",
-                        f"DTSTART;TZID=Europe/Paris:{dt_start}",
-                        f"DTEND;TZID=Europe/Paris:{dt_start}",
-                        f"DESCRIPTION:Prière de {name} - Mosquée de Frais Vallon",
-                        "LOCATION:Mosquée de Frais Vallon, 13013 Marseille",
-                        "END:VEVENT"
-                    ])
-
-                # Prière du Vendredi (Jumu'ah) basée sur le jour effectif et l'horaire officiel
-                if current_date.weekday() == 4:
-                    # Si une heure spécifique de Jumu'ah est dans les données de la mosquée, on l'utilise, sinon on prend le Dhuhr du jour
-                    j_time = jumuah_time if jumuah_time else times[1]
-                    clean_jumuah = j_time.replace(":", "")
-                    jumuah_dt = f"{date_str}T{clean_jumuah}00"
-                    ics_lines.extend([
-                        "BEGIN:VEVENT",
-                        "SUMMARY:Jumu'ah",
-                        f"DTSTART;TZID=Europe/Paris:{jumuah_dt}",
-                        f"DTEND;TZID=Europe/Paris:{jumuah_dt}",
-                        "DESCRIPTION:Grande prière du vendredi à la mosquée",
-                        "LOCATION:Mosquée de Frais Vallon, 13013 Marseille",
-                        "END:VEVENT"
-                    ])
-
-    ics_lines.append("END:VCALENDAR")
-    return "\r\n".join(ics_lines)
+    print(f"Le fichier d'abonnement '{output_path}' a été généré avec succès à partir de '{input_path}'.")
 
 if __name__ == "__main__":
+    # Nom du fichier .ics que tu fournis
+    FICHIER_SOURCE = "input.ics"
+    # Nom du fichier généré pour l'abonnement
+    FICHIER_SORTIE = "calendar.ics"
+    
     try:
-        conf_data = fetch_mawaqit_data()
-        ics_content = generate_ics(conf_data)
-        with open("calendar.ics", "w", encoding="utf-8") as f:
-            f.write(ics_content)
-        print("Fichier calendar.ics généré avec succès !")
+        process_ics_subscription(FICHIER_SOURCE, FICHIER_SORTIE)
     except Exception as e:
-        print(f"Erreur lors de la génération : {e}")
+        print(f"Erreur lors du traitement du fichier : {e}")
         exit(1)
